@@ -20,17 +20,29 @@ We will use the Reddit API to crawl headlines from city-specific subreddits or t
 ## Weekly Plan:
 
 Week 1 [Vu Nguyen]:
+
 Tasks: Set up the Reddit API for data extraction. Focus on collecting headlines from subreddits related to Vietnamese cities.
+
 Objective: To finalize the list of city-specific subreddits and start the data collection process.
+
 Week 2 [Tue Nhi]:
+
 Tasks: Begin preliminary data cleaning and setup the VADER analyzer to start sentiment analysis on the collected headlines.
+
 Objective: To classify the collected headlines into sentiment categories and prepare the data for visualization.
+
 Week 3 [Vu Nguyen]:
+
 Tasks: Design and implement the choropleth map using R. This involves mapping sentiment scores to corresponding cities and creating the interactive map interface.
+
 Objective: To have a working prototype of the map ready for initial testing and review.
+
 Week 4 [Tue Nhi]:
 Tasks: Refine the visualization based on feedback. Improve interactive features and ensure the map is user-friendly.
 Objective: To finalize the interactive choropleth map and prepare for presentation.
+
 Week 5 [Both Members]:
+
 Tasks: Prepare the final presentation and document the project. Review the entire workflow and ensure all components are integrated seamlessly.
+
 Objective: To effectively communicate the findings and demonstrate the utility of the visualization in understanding regional sentiments.
