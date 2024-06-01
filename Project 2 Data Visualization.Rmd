@@ -29,7 +29,7 @@ library(sf)
 
 ```{r}
 # Load the dataset
-df <- read_csv("reddit_tourism_headlines_with_sentiment.csv")
+df <- read_csv("data/reddit_tourism_headlines_with_sentiment.csv")
 
 # View the first few rows of the dataset
 head(df)
@@ -214,7 +214,7 @@ ggplot() +
   geom_sf(data = vietnam_shapefile) +
   geom_sf(data = city_coords_sentiment_sf, aes(color = mean_sentiment), size = 3) +
   geom_text(data = city_coords, aes(x = Longitude, y = Latitude, label = City), size = 2, vjust = -1) +  
-  scale_color_viridis_c(option = "C") +
+  scale_color_viridis_c(option = "C", na.value = "lightgrey") +
   theme_minimal() +
   theme(axis.title.y = element_text(margin = margin(t = 10, r = 10, b = 10, l = 10)),
         axis.text.y = element_text(size = 6),  
@@ -226,4 +226,106 @@ ggplot() +
 
 
 ```
+```{r}
+# Aggregate sentiment scores by city and date
+city_sentiment_time <- df %>%
+  group_by(City, Date) %>%
+  summarise(
+    compound = mean(compound, na.rm = TRUE),
+    positive = mean(positive, na.rm = TRUE),
+    neutral = mean(neutral, na.rm = TRUE),
+    negative = mean(negative, na.rm = TRUE),
+    .groups = 'drop'
+  )
 
+```
+
+```{r}
+library(gganimate)  # For animation
+library(transformr)  # For smoother animations
+
+# Create the animated choropleth map
+p <- ggplot() +
+  geom_sf(data = vietnam_shapefile) +
+  geom_sf(data = city_coords_sentiment_time_sf, aes(color = compound), size = 3) +
+  geom_text(data = city_coords, aes(x = Longitude, y = Latitude, label = City), size = 2, vjust = -1) +
+  scale_color_viridis_c(option = "C", na.value = "lightgrey") +
+  theme_minimal() +
+  theme(axis.title.y = element_text(margin = margin(t = 10, r = 10, b = 10, l = 10)),
+        axis.text.y = element_text(size = 6),
+        axis.text.x = element_text(size = 6)) +
+  labs(title = "Sentiment Map of Tourism Headlines in Vietnam",
+       color = "Average Sentiment Score",
+       x = "Longitude",
+       y = "Latitude",
+       subtitle = 'Date: {frame_time}') + 
+  transition_time(Date) +
+  ease_aes('linear')
+
+animate(p, nframes = 100, fps = 5, width = 800, height = 600, renderer = gifski_renderer("animated_map.gif"))
+
+```
+
+
+
+```{r}
+# Merge with city coordinates
+city_coords_sentiment_time <- city_coords %>%
+  left_join(city_sentiment_time, by = "City")
+
+# Convert to spatial dataframe
+city_coords_sentiment_time_sf <- st_as_sf(city_coords_sentiment_time, coords = c("Longitude", "Latitude"), crs = 4326)
+
+ui <- fluidPage(
+  titlePanel("Sentiment Analysis of Tourism Headlines in Vietnam"),
+  sidebarLayout(
+    sidebarPanel(
+      dateRangeInput("dateRange",
+                     "Select Date Range:",
+                     start = min(city_coords_sentiment_time$Date, na.rm = TRUE),
+                     end = max(city_coords_sentiment_time$Date, na.rm = TRUE),
+                     min = min(city_coords_sentiment_time$Date, na.rm = TRUE),
+                     max = max(city_coords_sentiment_time$Date, na.rm = TRUE)),
+      selectInput("city", "Select City:", choices = unique(city_coords_sentiment_time$City), selected = "Hanoi")
+    ),
+    mainPanel(
+      leafletOutput("map")
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output) {
+  filtered_data <- reactive({
+    city_coords_sentiment_time %>%
+      filter(City == input$city, Date >= input$dateRange[1], Date <= input$dateRange[2])
+  })
+  
+  output$map <- renderLeaflet({
+    leaflet() %>%
+      addTiles() %>%
+      addPolygons(data = vietnam_shapefile, fillColor = "lightgrey", color = "black", weight = 1,
+                  highlightOptions = highlightOptions(weight = 3, color = "blue", bringToFront = TRUE)) %>%
+      setView(lng = 106.629664, lat = 16.054407, zoom = 6) %>%
+      addCircleMarkers(
+        data = filtered_data(),
+        lat = ~Latitude,
+        lng = ~Longitude,
+        color = ~colorNumeric("viridis", domain = filtered_data()$compound)(compound),
+        fillOpacity = 0.7,
+        radius = 5,
+        popup = ~paste(City, "<br>", "Date:", Date, "<br>", "Sentiment Score:", round(compound, 2))
+      ) %>%
+      addLegend(
+        position = "bottomright",
+        pal = colorNumeric("viridis", domain = city_coords_sentiment_time$compound),
+        values = city_coords_sentiment_time$compound,
+        title = "Sentiment Score",
+        opacity = 1
+      )
+  })
+}
+
+# Run the application
+shinyApp(ui = ui, server = server)
+```
