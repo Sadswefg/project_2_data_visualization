@@ -120,6 +120,7 @@ ggplot(sentiment_summary, aes(x = Date, y = count, color = sentiment_category)) 
 
 ```
 
+
 #Create Interactive Dashboard
 ```{r}
 library(shiny)
@@ -329,3 +330,76 @@ server <- function(input, output) {
 # Run the application
 shinyApp(ui = ui, server = server)
 ```
+
+```{r}
+# Merge with city coordinates
+city_coords_sentiment_time <- city_coords %>%
+  left_join(city_sentiment_time, by = "City")
+
+# Convert to spatial dataframe
+city_coords_sentiment_time_sf <- st_as_sf(city_coords_sentiment_time, coords = c("Longitude", "Latitude"), crs = 4326)
+
+ui <- fluidPage(
+  titlePanel("Sentiment Analysis of Tourism Headlines in Vietnam"),
+  sidebarLayout(
+    sidebarPanel(
+      dateRangeInput("dateRange",
+                     "Select Date Range:",
+                     start = min(city_coords_sentiment_time$Date, na.rm = TRUE),
+                     end = max(city_coords_sentiment_time$Date, na.rm = TRUE),
+                     min = min(city_coords_sentiment_time$Date, na.rm = TRUE),
+                     max = max(city_coords_sentiment_time$Date, na.rm = TRUE)),
+      selectInput("city", "Select City:", choices = unique(city_coords_sentiment_time$City), selected = "Hanoi"),
+      sliderInput("sentimentRange",
+                  "Select Sentiment Score Range:",
+                  min = min(city_coords_sentiment_time$compound, na.rm = TRUE),
+                  max = max(city_coords_sentiment_time$compound, na.rm = TRUE),
+                  value = c(min(city_coords_sentiment_time$compound, na.rm = TRUE), max(city_coords_sentiment_time$compound, na.rm = TRUE))
+      )
+    ),
+    mainPanel(
+      leafletOutput("map")
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output) {
+  filtered_data <- reactive({
+    city_coords_sentiment_time %>%
+      filter(City == input$city,
+             Date >= input$dateRange[1],
+             Date <= input$dateRange[2],
+             compound >= input$sentimentRange[1],
+             compound <= input$sentimentRange[2])
+  })
+  
+  output$map <- renderLeaflet({
+    leaflet() %>%
+      addTiles() %>%
+      addPolygons(data = vietnam_shapefile, fillColor = "lightgrey", color = "black", weight = 1,
+                  highlightOptions = highlightOptions(weight = 3, color = "blue", bringToFront = TRUE)) %>%
+      setView(lng = 106.629664, lat = 16.054407, zoom = 6) %>%
+      addCircleMarkers(
+        data = filtered_data(),
+        lat = ~Latitude,
+        lng = ~Longitude,
+        color = ~colorNumeric("viridis", domain = filtered_data()$compound)(compound),
+        fillOpacity = 0.7,
+        radius = 5,
+        popup = ~paste(City, "<br>", "Date:", Date, "<br>", "Sentiment Score:", round(compound, 2))
+      ) %>%
+      addLegend(
+        position = "bottomright",
+        pal = colorNumeric("viridis", domain = city_coords_sentiment_time$compound),
+        values = city_coords_sentiment_time$compound,
+        title = "Sentiment Score",
+        opacity = 1
+      )
+  })
+}
+
+# Run the application
+shinyApp(ui = ui, server = server)
+
+````
