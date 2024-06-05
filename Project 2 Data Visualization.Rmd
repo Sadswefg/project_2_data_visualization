@@ -358,7 +358,8 @@ ui <- fluidPage(
       )
     ),
     mainPanel(
-      leafletOutput("map")
+      leafletOutput("map"),
+      textOutput("meanSentiment")
     )
   )
 )
@@ -367,11 +368,17 @@ ui <- fluidPage(
 server <- function(input, output) {
   filtered_data <- reactive({
     city_coords_sentiment_time %>%
-      filter(City == input$city,
+      filter(
              Date >= input$dateRange[1],
              Date <= input$dateRange[2],
              compound >= input$sentimentRange[1],
              compound <= input$sentimentRange[2])
+  })
+  
+  mean_sentiment <- reactive({
+    filtered_data() %>%
+      summarise(mean_compound = mean(compound, na.rm = TRUE)) %>%
+      pull(mean_compound)
   })
   
   output$map <- renderLeaflet({
@@ -396,6 +403,11 @@ server <- function(input, output) {
         title = "Sentiment Score",
         opacity = 1
       )
+  })
+  
+  output$meanSentiment <- renderText({
+    mean_value <- mean_sentiment()
+    paste("Mean Sentiment Score for Selected Range: ", round(mean_value, 2))
   })
 }
 
